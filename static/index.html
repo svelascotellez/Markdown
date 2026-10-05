@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocToMarkdown Studio & Editor</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <!-- Marked.js local para funcionamiento 100% offline -->
+  <script src="marked.min.js"></script>
+</head>
+<body class="dark-theme">
+  <div class="app-container">
+    <!-- Encabezado -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h1>DocToMarkdown Studio</h1>
+          <p class="subtitle">Conversor y Editor integral de Word (.docx/.doc), PDF (.pdf) y Markdown (.md)</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="newDocBtnHeader" class="btn btn-secondary" title="Crear un nuevo documento Markdown vacío">
+          ➕ Nuevo .md
+        </button>
+        <button id="themeToggleBtn" class="btn btn-icon" title="Cambiar tema">
+          <span id="themeIcon">☀️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Área de carga Drag & Drop -->
+    <section class="upload-section">
+      <div id="dropZone" class="drop-zone">
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.md,.markdown" class="file-input">
+        <div class="drop-content">
+          <div class="upload-icon-wrapper">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <h3>Arrastra y suelta tus archivos aquí</h3>
+          <p>O haz clic para seleccionar documentos para convertir o editar</p>
+          <div class="format-badges">
+            <span class="badge badge-pdf">📄 PDF (.pdf)</span>
+            <span class="badge badge-word">📝 Word (.docx)</span>
+            <span class="badge badge-doc">📑 Word 97-2003 (.doc)</span>
+            <span class="badge badge-md">📋 Markdown (.md)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Estado de carga -->
+    <div id="loadingIndicator" class="loading-bar hidden">
+      <div class="spinner"></div>
+      <span id="loadingText">Procesando y convirtiendo documentos a Markdown...</span>
+    </div>
+
+    <!-- Panel de trabajo: Lista de archivos y visor / editor -->
+    <main id="workspace" class="workspace hidden">
+      <!-- Barra lateral de archivos procesados -->
+      <aside class="sidebar-files">
+        <div class="sidebar-header">
+          <h3>Documentos (<span id="fileCount">0</span>)</h3>
+          <div class="sidebar-actions">
+            <button id="newDocBtnSidebar" class="btn btn-sm btn-secondary" title="Crear nuevo documento .md">
+              ➕ Nuevo
+            </button>
+            <button id="downloadZipBtn" class="btn btn-sm btn-accent" title="Descargar todos los .md en un archivo ZIP">
+              📦 ZIP
+            </button>
+            <button id="clearAllBtn" class="btn btn-sm btn-outline-danger" title="Limpiar lista">
+              ✕
+            </button>
+          </div>
+        </div>
+        <ul id="fileList" class="file-list">
+          <!-- Archivos inyectados dinámicamente -->
+        </ul>
+      </aside>
+
+      <!-- Panel principal del Editor y Previsualización -->
+      <section class="preview-panel">
+        <div class="preview-header">
+          <div class="active-file-meta">
+            <span id="activeFileIcon" class="file-type-icon">📝</span>
+            <input type="text" id="activeFileNameInput" class="active-file-input" value="documento.md" title="Haz clic para renombrar el archivo">
+            <span id="activeFileStats" class="stats-badge">0 palabras</span>
+          </div>
+
+          <!-- Modos de vista y botones de acción -->
+          <div class="preview-controls">
+            <div class="view-tabs">
+              <button id="tabSplit" class="tab-btn active" data-view="split" title="Ver editor y resultado lado a lado">
+                ◫ Pantalla Dividida
+              </button>
+              <button id="tabEditor" class="tab-btn" data-view="editor" title="Solo editor de Markdown">
+                ✏️ Editor
+              </button>
+              <button id="tabRendered" class="tab-btn" data-view="rendered" title="Solo vista previa renderizada">
+                👁️ Vista Previa
+              </button>
+            </div>
+            <div class="action-buttons">
+              <button id="copyBtn" class="btn btn-secondary" title="Copiar código Markdown al portapapeles">
+                <span class="icon">📋</span> Copiar
+              </button>
+              <button id="downloadBtn" class="btn btn-primary" title="Descargar archivo .md">
+                <span class="icon">⬇️</span> Descargar .md
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de herramientas del Editor Markdown -->
+        <div id="editorToolbar" class="editor-toolbar">
+          <button type="button" class="tool-btn" data-tool="bold" title="Negrita (**texto**)"><b>B</b></button>
+          <button type="button" class="tool-btn" data-tool="italic" title="Cursiva (*texto*)"><i>I</i></button>
+          <button type="button" class="tool-btn" data-tool="strike" title="Tachado (~~texto~~)"><s>S</s></button>
+          <div class="tool-divider"></div>
+          <button type="button" class="tool-btn" data-tool="h1" title="Título 1 (# )">H1</button>
+          <button type="button" class="tool-btn" data-tool="h2" title="Título 2 (## )">H2</button>
+          <button type="button" class="tool-btn" data-tool="h3" title="Título 3 (### )">H3</button>
+          <div class="tool-divider"></div>
+          <button type="button" class="tool-btn" data-tool="ul" title="Lista de viñetas (- )">• Lista</button>
+          <button type="button" class="tool-btn" data-tool="ol" title="Lista numerada (1. )">1. Lista</button>
+          <button type="button" class="tool-btn" data-tool="task" title="Lista de tareas (- [ ])">☑ Tarea</button>
+          <div class="tool-divider"></div>
+          <button type="button" class="tool-btn" data-tool="quote" title="Cita (> )">❝ Cita</button>
+          <button type="button" class="tool-btn" data-tool="code" title="Bloque de código (```)"><code>&lt;/&gt;</code> Código</button>
+          <button type="button" class="tool-btn" data-tool="link" title="Insertar enlace [texto](url)">🔗 Enlace</button>
+          <button type="button" class="tool-btn" data-tool="table" title="Insertar tabla Markdown">📊 Tabla</button>
+          <button type="button" class="tool-btn" data-tool="hr" title="Línea horizontal (---)">──</button>
+        </div>
+
+        <!-- Contenedor del contenido (Modo divido, editor o previa) -->
+        <div id="previewBody" class="preview-body mode-split">
+          <!-- Panel del Editor -->
+          <div id="rawContainer" class="raw-view">
+            <textarea id="rawMarkdownText" spellcheck="false" placeholder="Escribe o edita tu código Markdown aquí..."></textarea>
+          </div>
+
+          <!-- Panel de Vista Previa Renderizada en HTML -->
+          <div id="renderedContainer" class="rendered-view markdown-body"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast de notificaciones -->
+    <div id="toast" class="toast hidden">
+      <span id="toastIcon">✅</span>
+      <span id="toastMessage">Texto copiado al portapapeles</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

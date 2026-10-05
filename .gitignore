@@ -1,0 +1,18 @@
+# Entornos virtuales
+.venv/
+env/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Archivos temporales y salidas
+*.tmp
+test_documento.md
+test_documento.docx
+test_documento.pdf
+test_suite.py
