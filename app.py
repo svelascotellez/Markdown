@@ -3,6 +3,7 @@ Servidor Web FastAPI para el Convertidor de Documentos Word y PDF a Markdown.
 Incluye endpoints de conversión individual, por lotes, descarga en ZIP y visualización interactiva.
 """
 
+import asyncio
 import io
 import os
 import sys
@@ -78,7 +79,8 @@ async def convert_files_endpoint(files: List[UploadFile] = File(...)):
                 )
                 continue
 
-            md_text = converter.convert_stream(content_bytes, orig_name)
+            # Ejecución en threadpool para evitar bloquear el event loop con documentos pesados
+            md_text = await asyncio.to_thread(converter.convert_stream, content_bytes, orig_name)
 
             lines = len(md_text.splitlines())
             words = len(md_text.split())

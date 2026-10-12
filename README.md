@@ -15,6 +15,11 @@ Incluye **dos modalidades de uso**:
   - `Word Moderno (.docx)` mediante Mammoth + Markdownify (generación de HTML semántico limpio y conversión a Markdown sin metadatos basura de Office).
   - `Word Legado (.doc 97-2003)` con motor de extracción de texto estructurado.
   - `Markdown (.md / .markdown)` para abrir, editar y visualizar directamente archivos Markdown existentes.
+- **Extracción de Imágenes Opcional**:
+  - Extrae imágenes incrustadas en documentos PDF y Word (.docx) hacia un subdirectorio local y genera referencias Markdown (`![](media/imagen.png)`).
+  - Configurable desde la CLI con `--extract-images` y `--image-dir <carpeta>`.
+- **Arquitectura Asíncrona de Alto Rendimiento**:
+  - Backend Web impulsado por FastAPI con procesamiento offloaded a worker threadpool (`asyncio.to_thread`), garantizando que la conversión de archivos grandes no bloquee el event loop.
 - **Editor de Markdown Integrado**:
   - ✏️ **Edición en Tiempo Real**: Modifica el texto y observa la actualización inmediata en la vista previa.
   - ◫ **Vista Dividida (Split Screen)**: Editor a la izquierda y visualización en tiempo real a la derecha.
@@ -55,7 +60,7 @@ Puedes arrastrar un archivo directamente sobre el archivo `convertir_cli.bat` o 
 ```powershell
 python cli.py
 ```
-*(Te pedirá la ruta del archivo o carpeta paso a paso)*.
+*(Te pedirá la ruta del archivo o carpeta y si deseas extraer imágenes incrustadas paso a paso)*.
 
 #### Convertir un archivo individual:
 ```powershell
@@ -63,14 +68,15 @@ python cli.py "ruta\a\tu\documento.docx"
 ```
 *(Genera automáticamente `documento.md` en la misma carpeta)*.
 
-#### Especificar nombre o carpeta de salida:
+#### Convertir extrayendo imágenes incrustadas:
 ```powershell
-python cli.py "documento.pdf" -o "salida\resumen.md"
+python cli.py "documento.pdf" --extract-images
+python cli.py "reporte.docx" -o "salida\reporte.md" --extract-images --image-dir "salida\imagenes"
 ```
 
 #### Procesamiento por lotes (carpeta completa):
 ```powershell
-python cli.py "C:\mis_documentos\" -o "C:\mis_markdowns\" --recursive
+python cli.py "C:\mis_documentos\" -o "C:\mis_markdowns\" --recursive --extract-images
 ```
 
 ---
@@ -78,11 +84,11 @@ python cli.py "C:\mis_documentos\" -o "C:\mis_markdowns\" --recursive
 ## 📁 Estructura del Proyecto
 
 ```text
-focused-hertz/
+Markdown/
 │
 ├── app.py                 # Servidor backend web (FastAPI + Uvicorn)
-├── cli.py                 # Interfaz de línea de comandos (CLI)
-├── converter.py           # Motor central de conversión de Word y PDF
+├── cli.py                 # Interfaz de línea de comandos (CLI con extracción de imágenes)
+├── converter.py           # Motor central de conversión de Word y PDF con soporte multimedia
 ├── requirements.txt       # Dependencias del proyecto
 ├── iniciar_web.bat        # Lanzador rápido con 1-clic para la app web
 ├── convertir_cli.bat      # Lanzador rápido para consola / drag & drop en Windows
@@ -90,6 +96,7 @@ focused-hertz/
 ├── static/                # Frontend web interactivo
 │   ├── index.html         # Interfaz web responsiva
 │   ├── style.css          # Estilos modernos (dark/light theme)
+│   ├── marked.min.js      # Parser y renderizador Markdown
 │   └── app.js             # Lógica de arrastrar y soltar, preview y descarga
 │
 └── .venv/                 # Entorno virtual de Python

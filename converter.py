@@ -46,10 +46,13 @@ class DocumentConverter:
         self,
         source: Union[str, Path, bytes, BinaryIO],
         page_chunks: bool = False,
+        extract_images: bool = False,
+        image_dir: Optional[Union[str, Path]] = None,
     ) -> str:
         """
         Convierte un archivo PDF a Markdown utilizando PyMuPDF4LLM
         (reconocimiento avanzado de tablas, encabezados y formato de lectura).
+        Permite la extracción opcional de imágenes embebidas.
         """
         doc = None
         temp_path = None
@@ -64,10 +67,23 @@ class DocumentConverter:
             else:
                 raise ValueError("Tipo de fuente no compatible para PDF.")
 
+            img_path_str = ""
+            write_imgs = False
+            if extract_images:
+                write_imgs = True
+                if image_dir:
+                    img_path_str = str(image_dir)
+                    os.makedirs(img_path_str, exist_ok=True)
+                else:
+                    img_path_str = "media"
+                    os.makedirs(img_path_str, exist_ok=True)
+
             md_text = pymupdf4llm.to_markdown(
                 doc,
                 page_chunks=page_chunks,
                 show_progress=False,
+                write_images=write_imgs,
+                image_path=img_path_str if write_imgs else "",
             )
 
             if isinstance(md_text, list):
@@ -105,25 +121,51 @@ class DocumentConverter:
         self,
         source: Union[str, Path, bytes, BinaryIO],
         use_mammoth: bool = True,
+        extract_images: bool = False,
+        image_dir: Optional[Union[str, Path]] = None,
     ) -> str:
         """
         Convierte un archivo Word (.docx) a Markdown.
         Utiliza Mammoth (HTML limpio y semántico) + Markdownify por defecto,
-        con fallback a MarkItDown.
+        con fallback a MarkItDown. Soporta extracción y guardado de imágenes embebidas.
         """
         temp_path = None
         try:
             if use_mammoth:
                 bio = None
+                img_converter = None
+                if extract_images:
+                    target_img_dir = Path(image_dir) if image_dir else Path("media")
+                    target_img_dir.mkdir(parents=True, exist_ok=True)
+                    counter = 0
+
+                    def _save_image(image):
+                        nonlocal counter
+                        counter += 1
+                        ext = mammoth.images.image_filename_extension(image) or "png"
+                        img_filename = f"image_{counter}.{ext}"
+                        img_filepath = target_img_dir / img_filename
+                        with image.open() as img_stream:
+                            img_filepath.write_bytes(img_stream.read())
+                        # Usar ruta relativa estándar para el enlace en Markdown
+                        rel_path = f"{target_img_dir.as_posix()}/{img_filename}"
+                        return {"src": rel_path}
+
+                    img_converter = mammoth.images.img_element(_save_image)
+
+                convert_kwargs = {}
+                if img_converter is not None:
+                    convert_kwargs["convert_image"] = img_converter
+
                 if isinstance(source, (str, Path)):
                     with open(source, "rb") as docx_file:
-                        result = mammoth.convert_to_html(docx_file)
+                        result = mammoth.convert_to_html(docx_file, **convert_kwargs)
                 elif isinstance(source, bytes):
                     bio = io.BytesIO(source)
-                    result = mammoth.convert_to_html(bio)
+                    result = mammoth.convert_to_html(bio, **convert_kwargs)
                 elif hasattr(source, "read"):
                     bio = io.BytesIO(source.read())
-                    result = mammoth.convert_to_html(bio)
+                    result = mammoth.convert_to_html(bio, **convert_kwargs)
                 else:
                     raise ValueError("Tipo de fuente no compatible para DOCX.")
 
@@ -209,6 +251,8 @@ class DocumentConverter:
         self,
         file_path: Union[str, Path],
         output_path: Optional[Union[str, Path]] = None,
+        extract_images: bool = False,
+        image_dir: Optional[Union[str, Path]] = None,
     ) -> Tuple[str, Path]:
         """
         Convierte un archivo dado por su ruta en disco y guarda el archivo .md si se especifica salida.
@@ -224,23 +268,35 @@ class DocumentConverter:
                 f"Formato no compatible '{suffix}'. Formatos soportados: {', '.join(self.SUPPORTED_EXTENSIONS)}"
             )
 
-        if suffix == ".pdf":
-            md_content = self.convert_pdf_to_markdown(path)
-        elif suffix == ".docx":
-            md_content = self.convert_docx_to_markdown(path)
-        elif suffix == ".doc":
-            md_content = self.convert_doc_to_markdown(path)
-        elif suffix in {".md", ".markdown"}:
-            md_content = self.clean_markdown(path.read_text(encoding="utf-8", errors="replace"))
-        else:
-            raise ValueError(f"Extensión no soportada: {suffix}")
-
         if output_path is None:
             out_p = path.with_suffix(".md")
         else:
             out_p = Path(output_path)
             if out_p.is_dir():
                 out_p = out_p / f"{path.stem}.md"
+
+        img_target_dir = image_dir
+        if extract_images and not img_target_dir:
+            img_target_dir = out_p.parent / f"{path.stem}_images"
+
+        if suffix == ".pdf":
+            md_content = self.convert_pdf_to_markdown(
+                path,
+                extract_images=extract_images,
+                image_dir=img_target_dir,
+            )
+        elif suffix == ".docx":
+            md_content = self.convert_docx_to_markdown(
+                path,
+                extract_images=extract_images,
+                image_dir=img_target_dir,
+            )
+        elif suffix == ".doc":
+            md_content = self.convert_doc_to_markdown(path)
+        elif suffix in {".md", ".markdown"}:
+            md_content = self.clean_markdown(path.read_text(encoding="utf-8", errors="replace"))
+        else:
+            raise ValueError(f"Extensión no soportada: {suffix}")
 
         out_p.parent.mkdir(parents=True, exist_ok=True)
         out_p.write_text(md_content, encoding="utf-8")
@@ -251,6 +307,8 @@ class DocumentConverter:
         self,
         stream_or_bytes: Union[bytes, BinaryIO],
         filename: str,
+        extract_images: bool = False,
+        image_dir: Optional[Union[str, Path]] = None,
     ) -> str:
         """
         Convierte un archivo recibido como stream o bytes (ideal para APIs y Web).
@@ -263,9 +321,17 @@ class DocumentConverter:
             )
 
         if ext == ".pdf":
-            return self.convert_pdf_to_markdown(stream_or_bytes)
+            return self.convert_pdf_to_markdown(
+                stream_or_bytes,
+                extract_images=extract_images,
+                image_dir=image_dir,
+            )
         elif ext == ".docx":
-            return self.convert_docx_to_markdown(stream_or_bytes)
+            return self.convert_docx_to_markdown(
+                stream_or_bytes,
+                extract_images=extract_images,
+                image_dir=image_dir,
+            )
         elif ext == ".doc":
             return self.convert_doc_to_markdown(stream_or_bytes)
         elif ext in {".md", ".markdown"}:
@@ -279,6 +345,7 @@ class DocumentConverter:
         input_dir: Union[str, Path],
         output_dir: Optional[Union[str, Path]] = None,
         recursive: bool = False,
+        extract_images: bool = False,
     ) -> List[Tuple[Path, Path, bool, str]]:
         """
         Convierte todos los archivos soportados en una carpeta.
@@ -305,9 +372,14 @@ class DocumentConverter:
                 target_file = target_dir / f"{item.stem}.md"
 
                 try:
-                    self.convert_file(item, target_file)
+                    self.convert_file(
+                        item,
+                        target_file,
+                        extract_images=extract_images,
+                    )
                     results.append((item, target_file, True, "Convertido exitosamente"))
                 except Exception as e:
                     results.append((item, target_file, False, str(e)))
 
         return results
+
